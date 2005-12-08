@@ -2,7 +2,25 @@ NAME
     Gedcom::FOAF - Output FOAF files from Gedcom individuals and families
 
 SYNOPSIS
+            use Gedcom;
+            use Gedcom::FOAF;
+        
+            my $gedcom = Gedcom->new( gedcom_file => 'myfamily.ged' );
+            my $i = $gedcom->get_individual( 'Butch Cassidy' );
+        
+            # print the individual's FOAF
+            print $i->as_foaf;
+        
+            my( $f ) = $i->famc;
+        
+            # print the individual's family's (as a child) FOAF
+            print $f->as_foaf;
+
 DESCRIPTION
+    This module provides "as_foaf" methods to individual and family records.
+    The resulting files can be parsed and crawled (scuttered) by any code
+    that understands the FOAF and RDF specs.
+
 METHODS
   Gedcom::Individual
    as_foaf( $baseurl )

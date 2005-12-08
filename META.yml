@@ -1,6 +1,6 @@
 ---
 name: Gedcom-FOAF
-version: 0.01
+version: 0.02
 author:
   - Brian Cassidy <bricas@cpan.org>
 abstract: Output FOAF files from Gedcom individuals and families
@@ -13,11 +13,11 @@ build_requires:
 provides:
   Gedcom::FOAF:
     file: lib/Gedcom/FOAF.pm
-    version: 0.01
+    version: 0.02
   Gedcom::Family:
     file: lib/Gedcom/FOAF.pm
-    version: 0.01
+    version: 0.02
   Gedcom::Individual:
     file: lib/Gedcom/FOAF.pm
-    version: 0.01
+    version: 0.02
 generated_by: Module::Build version 0.2611
