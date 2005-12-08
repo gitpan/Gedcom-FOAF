@@ -1,0 +1,23 @@
+---
+name: Gedcom-FOAF
+version: 0.01
+author:
+  - Brian Cassidy <bricas@cpan.org>
+abstract: Output FOAF files from Gedcom individuals and families
+license: perl
+requires:
+  XML::LibXML: 0
+build_requires:
+  File::Slurp: 0
+  Test::More: 0
+provides:
+  Gedcom::FOAF:
+    file: lib/Gedcom/FOAF.pm
+    version: 0.01
+  Gedcom::Family:
+    file: lib/Gedcom/FOAF.pm
+    version: 0.01
+  Gedcom::Individual:
+    file: lib/Gedcom/FOAF.pm
+    version: 0.01
+generated_by: Module::Build version 0.2611
