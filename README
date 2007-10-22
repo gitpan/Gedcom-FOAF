@@ -2,19 +2,19 @@ NAME
     Gedcom::FOAF - Output FOAF files from Gedcom individuals and families
 
 SYNOPSIS
-            use Gedcom;
-            use Gedcom::FOAF;
-        
-            my $gedcom = Gedcom->new( gedcom_file => 'myfamily.ged' );
-            my $i = $gedcom->get_individual( 'Butch Cassidy' );
-        
-            # print the individual's FOAF
-            print $i->as_foaf;
-        
-            my( $f ) = $i->famc;
-        
-            # print the individual's family's (as a child) FOAF
-            print $f->as_foaf;
+        use Gedcom;
+        use Gedcom::FOAF;
+    
+        my $gedcom = Gedcom->new( gedcom_file => 'myfamily.ged' );
+        my $i = $gedcom->get_individual( 'Butch Cassidy' );
+    
+        # print the individual's FOAF
+        print $i->as_foaf;
+    
+        my( $f ) = $i->famc;
+    
+        # print the individual's family's (as a child) FOAF
+        print $f->as_foaf;
 
 DESCRIPTION
     This module provides "as_foaf" methods to individual and family records.
@@ -36,10 +36,10 @@ METHODS
     base url if desired.
 
 AUTHOR
-    * Brian Cassidy <bricas@cpan.org>
+    Brian Cassidy <bricas@cpan.org>
 
 COPYRIGHT AND LICENSE
-    Copyright 2005 by Brian Cassidy
+    Copyright 2007 by Brian Cassidy
 
     This library is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.
