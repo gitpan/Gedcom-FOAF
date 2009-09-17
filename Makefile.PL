@@ -1,4 +1,4 @@
-use inc::Module::Install 0.68;
+use inc::Module::Install 0.91;
 
 if( -e 'MANIFEST.SKIP' ) {
     system( 'pod2text lib/Gedcom/FOAF.pm > README' );
@@ -12,5 +12,4 @@ requires 'XML::LibXML';
 
 test_requires 'Test::More';
 
-auto_install;
 WriteAll;

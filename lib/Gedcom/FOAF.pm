@@ -26,6 +26,31 @@ This module provides C<as_foaf> methods to individual and family
 records. The resulting files can be parsed and crawled (scuttered)
 by any code that understands the FOAF and RDF specs.
 
+=head1 URL TEMPLATES
+
+You can supply 3 different url templates.
+
+=over 4
+
+=item * individual
+
+=item * family
+
+=item * photo
+
+=back
+
+These templates are used to link between foaf representations of individuals
+and families, plus provide photo urls for their profiles. The individual and 
+family templates will have an C<xref> param, and the photo template will have 
+a C<photo> param.
+
+    {
+        individual => 'http://foo.com/i/{xref}?fmt=foaf',
+        family     => 'http://foo.com/f/{xref}?fmt=foaf',
+        photo      => 'http://foo.com/static/photos/{photo}',
+    }
+
 =head1 METHODS
 
 =cut
@@ -35,7 +60,7 @@ use warnings;
 
 use XML::LibXML;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 my %namespaces = (
     rdf  => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
@@ -45,21 +70,41 @@ my %namespaces = (
     bio  => 'http://purl.org/vocab/bio/0.1/'
 );
 
+my %compat_urls = (
+    individual => '{xref}.xml',
+    family     => '{xref}.xml',
+    photo      => 'photos/{photo}'
+);
+
+sub _prep_opts {
+    my $opts = shift;
+
+    if ( ref $opts ) {
+        $opts->{ $_ } ||= '' for keys %compat_urls;
+        return $opts;
+    }
+
+    my $base = $opts || '';
+    $opts = { map { $_ => "${base}$compat_urls{ $_ }" } keys %compat_urls };
+
+    return $opts;
+}
+
 package Gedcom::Individual;
 
 =head2 Gedcom::Individual
 
-=head3 as_foaf( $baseurl )
+=head3 as_foaf( \%opts )
 
-Generates a FOAF (XML) string from the Gedcom::Individual object. Pass
-in a base url if desired.
+Generates a FOAF (XML) string from the Gedcom::Individual object. Pass in
+the url templates as described above to suit your needs.
 
 =cut
 
 sub as_foaf {
-    my $self    = shift;
-    my $baseurl = shift || '';
-    my $xml     = XML::LibXML::Document->new( '1.0', 'UTF8' );
+    my $self = shift;
+    my $opts = Gedcom::FOAF::_prep_opts( shift );
+    my $xml  = XML::LibXML::Document->new( '1.0', 'UTF-8' );
 
     my $rdf = $xml->createElement( 'RDF' );
 
@@ -72,15 +117,14 @@ sub as_foaf {
     $xml->setDocumentElement( $rdf );
 
     for ( $self->famc, $self->fams ) {
-        $rdf->appendChild( $_->_foaf_seealso( $self, $baseurl ) );
+        $rdf->appendChild( $_->_foaf_seealso( $self, $opts ) );
     }
 
-    my $xref    = $self->xref;
-    my $url     = "$baseurl$xref.xml";
-    my $urlspec = "$url#$xref";
+    my $xref = $self->xref;
+    ( my $href = $opts->{ individual } ) =~ s{\{xref\}}{$xref}g;
 
     my $person = $xml->createElement( 'foaf:Person' );
-    $person->setAttribute( 'rdf:about' => $urlspec );
+    $person->setAttribute( 'rdf:about' => "$href#$xref" );
 
     my $name = $xml->createElement( 'foaf:name' );
     $name->appendText( $self->label_name );
@@ -96,9 +140,9 @@ sub as_foaf {
     $person->appendChild( $lastname );
 
     for my $photo ( $self->tag_value( 'PHOT' ) ) {
+        ( my $href = $opts->{ photo } ) =~ s{\{photo\}}{$photo}g;
         my $depic = $xml->createElement( 'foaf:depiction' );
-        $depic->setAttribute(
-            'rdf:resource' => $baseurl . 'photos/' . $photo );
+        $depic->setAttribute( 'rdf:resource' => $href );
 
         $person->appendChild( $depic );
     }
@@ -115,10 +159,10 @@ sub as_foaf {
     }
 
     for (
-        $self->_foaf_rel( 'parents',  'child',   $baseurl ),
-        $self->_foaf_rel( 'spouse',   'spouse',  $baseurl ),
-        $self->_foaf_rel( 'siblings', 'sibling', $baseurl ),
-        $self->_foaf_rel( 'children', 'parent',  $baseurl ),
+        $self->_foaf_rel( 'parents',  'child',   $opts ),
+        $self->_foaf_rel( 'spouse',   'spouse',  $opts ),
+        $self->_foaf_rel( 'siblings', 'sibling', $opts ),
+        $self->_foaf_rel( 'children', 'parent',  $opts ),
         )
     {
         $person->appendChild( $_ );
@@ -127,7 +171,7 @@ sub as_foaf {
     $rdf->addChild( $person );
 
     for ( $self->parents, $self->siblings, $self->spouse, $self->children ) {
-        $rdf->addChild( $_->_foaf_seealso( $baseurl ) );
+        $rdf->addChild( $_->_foaf_seealso( $opts ) );
     }
 
     return $xml->toString( 1 );
@@ -142,7 +186,7 @@ sub _foaf_event {
     my $date  = XML::LibXML::Element->new( 'bio:date' );
     my $place = XML::LibXML::Element->new( 'bio:place' );
 
-    $date->appendText( $self->get_value( "$name date" ) || 'UNKNOWN' );
+    $date->appendText( $self->get_value( "$name date" )   || 'UNKNOWN' );
     $place->appendText( $self->get_value( "$name place" ) || 'UNKNOWN' );
 
     $type->appendChild( $date );
@@ -154,17 +198,18 @@ sub _foaf_event {
 }
 
 sub _foaf_rel {
-    my $self    = shift;
-    my $method  = shift;
-    my $rel     = shift;
-    my $baseurl = shift;
+    my $self   = shift;
+    my $method = shift;
+    my $rel    = shift;
+    my $opts   = shift;
 
     my @rels;
 
     for my $person ( $self->$method ) {
-        my $xref    = $person->xref;
+        my $xref = $person->xref;
+        ( my $href = $opts->{ individual } ) =~ s{\{xref\}}{$xref}g;
         my $element = XML::LibXML::Element->new( 'rel:' . $rel . 'Of' );
-        $element->setAttribute( 'rdf:resource' => "$baseurl$xref.xml#$xref" );
+        $element->setAttribute( 'rdf:resource' => "$href#$xref" );
         push @rels, $element;
     }
 
@@ -172,20 +217,19 @@ sub _foaf_rel {
 }
 
 sub _foaf_seealso {
-    my $self    = shift;
-    my $baseurl = shift;
-    my $xref    = $self->xref;
-    my $url     = "$baseurl$xref.xml";
-    my $urlspec = "$url#$xref";
+    my $self = shift;
+    my $opts = shift;
+    my $xref = $self->xref;
+    ( my $href = $opts->{ individual } ) =~ s{\{xref\}}{$xref}g;
 
     my $person = XML::LibXML::Element->new( 'foaf:Person' );
-    $person->setAttribute( 'rdf:about' => $urlspec );
+    $person->setAttribute( 'rdf:about' => "$href#$xref" );
 
     my $name = XML::LibXML::Element->new( 'foaf:name' );
     $name->appendText( $self->label_name );
 
     my $seealso = XML::LibXML::Element->new( 'rdfs:seeAlso' );
-    $seealso->setAttribute( 'rdf:resource' => $url );
+    $seealso->setAttribute( 'rdf:resource' => "$href#$xref" );
 
     $person->appendChild( $name );
     $person->appendChild( $seealso );
@@ -209,17 +253,17 @@ package Gedcom::Family;
 
 =head2 Gedcom::Family
 
-=head3 as_foaf( $baseurl )
+=head3 as_foaf( \%opts )
 
-Generates a FOAF (XML) string from the Gedcom::Family object. Pass
-in a base url if desired.
+Generates a FOAF (XML) string from the Gedcom::Family object. Pass in
+the url templates as described above to suit your needs.
 
 =cut
 
 sub as_foaf {
-    my $self    = shift;
-    my $baseurl = shift || '';
-    my $xml     = XML::LibXML::Document->new( '1.0', 'UTF8' );
+    my $self = shift;
+    my $opts = Gedcom::FOAF::_prep_opts( shift );
+    my $xml  = XML::LibXML::Document->new( '1.0', 'UTF-8' );
 
     my $rdf = $xml->createElement( 'RDF' );
 
@@ -231,7 +275,8 @@ sub as_foaf {
     $xml->setDocumentElement( $rdf );
     my $xref  = $self->xref;
     my $group = $xml->createElement( 'foaf:Group' );
-    $group->setAttribute( 'rdf:about' => "$baseurl$xref.xml#$xref" );
+    ( my $href = $opts->{ family } ) =~ s{\{xref\}}{$xref}g;
+    $group->setAttribute( 'rdf:about' => "$href#$xref" );
 
     my $label = $xml->createElement( 'rdfs:label' );
 
@@ -273,37 +318,37 @@ sub as_foaf {
     $rdf->appendChild( $group );
 
     for my $person ( $self->parents, $self->children ) {
-        my $xref    = $person->xref;
-        my $url     = "$baseurl$xref.xml";
-        my $urlspec = "$url#$xref";
+        my $xref = $person->xref;
+        ( my $href = $opts->{ individual } ) =~ s{\{xref\}}{$xref}g;
 
         my $member = $xml->createElement( 'foaf:member' );
-        $member->setAttribute( 'rdf:resource' => $urlspec );
+        $member->setAttribute( 'rdf:resource' => "$href#$xref" );
         $group->appendChild( $member );
 
-        $rdf->appendChild( $person->_foaf_seealso( $baseurl ) );
+        $rdf->appendChild( $person->_foaf_seealso( $opts ) );
     }
 
     return $xml->toString( 1 );
 }
 
 sub _foaf_seealso {
-    my $self    = shift;
-    my $person  = shift;
-    my $baseurl = shift;
+    my $self   = shift;
+    my $person = shift;
+    my $opts   = shift;
+
+    my $fxref = $self->xref;
+    my $pxref = $person->xref;
+    ( my $fhref = $opts->{ family } )     =~ s{\{xref\}}{$fxref}ge;
+    ( my $phref = $opts->{ individual } ) =~ s{\{xref\}}{$pxref}ge;
 
     my $group = XML::LibXML::Element->new( 'foaf:Group' );
-    $group->setAttribute(
-        'rdf:about' => $baseurl . $self->xref . '.xml#' . $self->xref );
+    $group->setAttribute( 'rdf:about' => "$fhref#$fxref" );
 
     my $seealso = XML::LibXML::Element->new( 'rdfs:seeAlso' );
-    $seealso->setAttribute(
-        'rdf:resource' => $baseurl . $self->xref . '.xml' );
+    $seealso->setAttribute( 'rdf:resource' => "$fhref#$fxref" );
 
     my $member = XML::LibXML::Element->new( 'foaf:member' );
-    $member->setAttribute( 'rdf:resource' => $baseurl
-            . $person->xref . '.xml#'
-            . $person->xref );
+    $member->setAttribute( 'rdf:resource' => "$phref#$pxref" );
 
     $group->appendChild( $seealso );
     $group->appendChild( $member );
@@ -317,7 +362,7 @@ Brian Cassidy E<lt>bricas@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2008 by Brian Cassidy
+Copyright 2005-2009 by Brian Cassidy
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 
